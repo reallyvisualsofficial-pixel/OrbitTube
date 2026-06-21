@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 OrbitTube — видео без границ</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* ===== ТЁМНАЯ ТЕМА (как в YouTube) ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background: #0f0f0f;
+            color: #ffffff;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 16px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #303030;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 20px;
+            font-weight: 700;
+            color: #00d4ff;
+        }
+        .logo i { font-size: 24px; }
+        .search-box {
+            flex: 1;
+            max-width: 600px;
+            display: flex;
+            background: #121212;
+            border: 1px solid #303030;
+            border-radius: 40px;
+            overflow: hidden;
+        }
+        .search-box input {
+            flex: 1;
+            padding: 8px 16px;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-size: 15px;
+        }
+        .search-box button {
+            background: #303030;
+            border: none;
+            padding: 8px 20px;
+            color: #fff;
+            cursor: pointer;
+        }
+        .main-content {
+            padding: 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 24px 16px;
+        }
+        .video-card {
+            background: #1a1a1a;
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .video-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+        .video-thumbnail {
+            position: relative;
+            background: #2a2a2a;
+            aspect-ratio: 16/9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .video-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .video-info { padding: 12px 14px; }
+        .video-title {
+            font-weight: 500;
+            font-size: 14px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+        .video-channel {
+            font-size: 13px;
+            color: #aaaaaa;
+        }
+        .video-meta {
+            font-size: 13px;
+            color: #606060;
+        }
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: #606060;
+            border-top: 1px solid #303030;
+            margin-top: 40px;
+        }
+
+        /* ===== ПЛЕЕР НА ВЕСЬ ЭКРАН ===== */
+        .player-page {
+            display: none;
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #0f0f0f;
+            z-index: 200;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .player-page.active { display: block; }
+        .player-layout {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .player-video-wrapper {
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+        }
+        .player-video-wrapper video {
+            width: 100%;
+            height: 100%;
+        }
+        .player-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin: 12px 0 4px;
+        }
+        .player-channel {
+            color: #aaaaaa;
+            font-size: 14px;
+        }
+        .player-description {
+            background: #1a1a1a;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-top: 12px;
+            font-size: 14px;
+            color: #aaaaaa;
+            border: 1px solid #303030;
+        }
+        .player-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .player-actions button {
+            background: #303030;
+            border: none;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .player-actions button:hover { background: #404040; }
+        .player-actions button.liked { color: #00d4ff; }
+
+        .recommended-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #aaaaaa;
+        }
+        .recommended-item {
+            display: flex;
+            gap: 12px;
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        .recommended-item:hover { background: #1a1a1a; }
+        .recommended-thumbnail {
+            width: 168px;
+            aspect-ratio: 16/9;
+            background: #2a2a2a;
+            border-radius: 8px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .recommended-thumbnail img { width: 100%; height: 100%; object-fit: cover; }
+        .recommended-title-text {
+            font-size: 14px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .recommended-channel {
+            font-size: 13px;
+            color: #aaaaaa;
+        }
+        .back-btn {
+            background: none;
+            border: none;
+            color: #aaaaaa;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .back-btn:hover { color: #fff; }
+
+        @media (max-width: 768px) {
+            .player-layout { grid-template-columns: 1fr; }
+            .recommended-thumbnail { width: 120px; }
+            .search-box { max-width: 100%; }
+            .video-grid { grid-template-columns: 1fr; }
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #606060;
+            grid-column: 1/-1;
+        }
+        .empty-state i { font-size: 48px; margin-bottom: 20px; display: block; }
+        .empty-state h3 { color: #fff; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+
+<!-- ===== ШАПКА ===== -->
+<header class="header">
+    <div class="logo" id="logoHome"><i class="fas fa-rocket"></i> OrbitTube</div>
+    <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Поиск в OrbitTube">
+        <button id="searchBtn"><i class="fas fa-search"></i></button>
+    </div>
+    <div style="color:#606060;font-size:14px;" id="videoCount">0 видео</div>
+</header>
+
+<!-- ===== ГЛАВНАЯ ===== -->
+<main class="main-content" id="mainContent">
+    <div class="video-grid" id="videoGrid"></div>
+    <div class="footer">
+        <p>🚀 OrbitTube — видео, которое нельзя заблокировать</p>
+        <p>📡 Видео хранятся на GitHub</p>
+    </div>
+</main>
+
+<!-- ===== ПЛЕЕР ===== -->
+<div class="player-page" id="playerPage">
+    <div class="player-layout">
+        <div>
+            <button class="back-btn" id="backToHome"><i class="fas fa-arrow-left"></i> На главную</button>
+            <div class="player-video-wrapper">
+                <video id="playerVideo" controls></video>
+            </div>
+            <div class="player-title" id="playerTitle">Название видео</div>
+            <div class="player-channel" id="playerChannel">Канал</div>
+            <div class="player-actions">
+                <button id="playerLike"><i class="fas fa-thumbs-up"></i> <span id="likeCount">0</span></button>
+                <button id="playerWatchLater"><i class="fas fa-clock"></i> Смотреть позже</button>
+            </div>
+            <div class="player-description" id="playerDescription">Описание загружается...</div>
+        </div>
+        <div>
+            <div class="recommended-title">Рекомендуемые видео</div>
+            <div id="recommendedList"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ===== ЗАГРУЗКА ВИДЕО =====
+let allVideos = [];
+let currentVideos = [];
+let currentVideoData = null;
+let likedVideos = JSON.parse(localStorage.getItem('orbittube_liked') || '[]');
+let watchLater = JSON.parse(localStorage.getItem('orbittube_watchlater') || '[]');
+
+async function loadVideos() {
+    try {
+        // ГЛАВНОЕ: ССЫЛКА НА ТВОЙ video.raw
+        const url = 'https://raw.githubusercontent.com/reallyvisualsofficial-pixel/OrbitTube/refs/heads/main/video.raw?v=' + Date.now();
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Не удалось загрузить video.raw');
+        const data = await response.json();
+        allVideos = data.videos || [];
+        document.getElementById('videoCount').textContent = allVideos.length + ' видео';
+        renderVideos(allVideos);
+    } catch (e) {
+        console.error('Ошибка загрузки:', e);
+        document.getElementById('videoGrid').innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-satellite"></i>
+                <h3>🚀 OrbitTube готов к работе!</h3>
+                <p>Пока видео нет. Добавь первое через Python скрипт!</p>
+                <p style="color:#00d4ff;margin-top:12px;">
+                    <i class="fas fa-terminal"></i> Запусти: python main.py
+                </p>
+                <p style="font-size:12px;margin-top:8px;color:#606060;">
+                    Проверь что video.raw есть в репозитории:
+                    <br>https://github.com/reallyvisualsofficial-pixel/OrbitTube
+                </p>
+            </div>
+        `;
+    }
+}
+
+function renderVideos(videos) {
+    const grid = document.getElementById('videoGrid');
+    if (!videos || videos.length === 0) {
+        grid.innerHTML = `<div class="empty-state"><i class="fas fa-search"></i><h3>Ничего не найдено</h3></div>`;
+        return;
+    }
+    grid.innerHTML = videos.map((v, i) => `
+        <div class="video-card" onclick="openPlayer(${i})">
+            <div class="video-thumbnail">
+                <i class="fas fa-play-circle" style="font-size:48px;color:#404040;"></i>
+                <span style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.8);padding:2px 8px;border-radius:4px;font-size:12px;">10:00</span>
+            </div>
+            <div class="video-info">
+                <div class="video-title">${v.title || 'Без названия'}</div>
+                <div class="video-channel">${v.channel || 'Неизвестный канал'}</div>
+                <div class="video-meta">${v.views || 0} просмотров</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ===== ПЛЕЕР =====
+function openPlayer(index) {
+    const video = currentVideos[index] || allVideos[index];
+    if (!video) return;
+    currentVideoData = video;
+    
+    document.getElementById('playerTitle').textContent = video.title || 'Без названия';
+    document.getElementById('playerChannel').textContent = video.channel || 'Неизвестный канал';
+    document.getElementById('playerDescription').textContent = video.description || 'Описание отсутствует';
+    document.getElementById('likeCount').textContent = (video.views || 0) % 1000;
+    
+    const player = document.getElementById('playerVideo');
+    player.src = video.temp_url || 'https://www.w3schools.com/html/mov_bbb.mp4';
+    player.load();
+    
+    document.getElementById('mainContent').style.display = 'none';
+    document.getElementById('playerPage').classList.add('active');
+    
+    // Рекомендации
+    const recom = allVideos.filter(v => v.id !== video.id).slice(0, 5);
+    document.getElementById('recommendedList').innerHTML = recom.map(v => `
+        <div class="recommended-item" onclick="openPlayerByRecommended(${v.id})">
+            <div class="recommended-thumbnail"><i class="fas fa-play" style="display:flex;align-items:center;justify-content:center;height:100%;color:#404040;"></i></div>
+            <div>
+                <div class="recommended-title-text">${v.title || 'Без названия'}</div>
+                <div class="recommended-channel">${v.channel || 'Неизвестный канал'}</div>
+            </div>
+        </div>
+    `).join('');
+    
+    // Автозапуск
+    player.play().catch(() => {});
+}
+
+function openPlayerByRecommended(id) {
+    const idx = allVideos.findIndex(v => v.id === id);
+    if (idx !== -1) openPlayer(idx);
+}
+
+function closePlayer() {
+    document.getElementById('playerPage').classList.remove('active');
+    document.getElementById('mainContent').style.display = 'block';
+    document.getElementById('playerVideo').pause();
+}
+
+// ===== КНОПКИ =====
+document.getElementById('backToHome').addEventListener('click', closePlayer);
+document.getElementById('logoHome').addEventListener('click', () => {
+    closePlayer();
+    document.getElementById('searchInput').value = '';
+    loadVideos();
+});
+
+document.getElementById('playerLike').addEventListener('click', function() {
+    if (!currentVideoData) return;
+    const id = currentVideoData.id;
+    const idx = likedVideos.indexOf(id);
+    if (idx > -1) likedVideos.splice(idx, 1);
+    else likedVideos.push(id);
+    localStorage.setItem('orbittube_liked', JSON.stringify(likedVideos));
+    this.classList.toggle('liked');
+});
+
+document.getElementById('playerWatchLater').addEventListener('click', function() {
+    if (!currentVideoData) return;
+    const id = currentVideoData.id;
+    const idx = watchLater.indexOf(id);
+    if (idx > -1) watchLater.splice(idx, 1);
+    else watchLater.push(id);
+    localStorage.setItem('orbittube_watchlater', JSON.stringify(watchLater));
+    this.innerHTML = watchLater.includes(id) ? '<i class="fas fa-check"></i> В сохранённых' : '<i class="fas fa-clock"></i> Смотреть позже';
+});
+
+// ===== ПОИСК =====
+document.getElementById('searchBtn').addEventListener('click', function() {
+    const q = document.getElementById('searchInput').value.toLowerCase().trim();
+    if (!q) { renderVideos(allVideos); return; }
+    const filtered = allVideos.filter(v => 
+        (v.title && v.title.toLowerCase().includes(q)) ||
+        (v.channel && v.channel.toLowerCase().includes(q))
+    );
+    currentVideos = filtered;
+    renderVideos(filtered);
+});
+
+document.getElementById('searchInput').addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') document.getElementById('searchBtn').click();
+});
+
+// ===== ЗАПУСК =====
+loadVideos();
+
+// Обновляем каждые 2 минуты
+setInterval(loadVideos, 2 * 60 * 1000);
+</script>
+</body>
+</html>
