@@ -1,1 +1,16 @@
-
+{
+  "videos": [
+    {
+      "id": 1,
+      "title": "Эти Оружия ПОЛНОСТЬЮ УНИЧТОЖИЛИ Этот Сервер в Майнкрафт",
+      "channel": "Кейдзи",
+      "description": "",
+      "temp_url": "https://unruffled-unfrosted-name.ngrok-free.dev/videos/dLKi1WLvawo_1782134795.mp4",
+      "expires": "2026-06-22T18:31:37.651817",
+      "original_url": "https://www.youtube.com/watch?v=dLKi1WLvawo",
+      "added": "2026-06-22T16:31:37.651849",
+      "filename": "dLKi1WLvawo_1782134795.mp4"
+    }
+  ],
+  "last_update": "2026-06-22T16:31:37.651859"
+}
