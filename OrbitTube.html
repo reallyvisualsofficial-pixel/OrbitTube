@@ -846,4 +846,423 @@
             <label>🎨 Цвет фона</label>
             <div class="bg-options">
                 <button class="bg-btn active" data-bg="dark"><div class="color-preview" style="background:#0f0f0f;"></div>Тёмный</button>
-                <button
+                <button class="bg-btn" data-bg="darker"><div class="color-preview" style="background:#000000;"></div>Чёрный</button>
+                <button class="bg-btn" data-bg="gray"><div class="color-preview" style="background:#1a1a1a;"></div>Серый</button>
+                <button class="bg-btn" data-bg="blue"><div class="color-preview" style="background:#0a1628;"></div>Синий</button>
+                <button class="bg-btn" data-bg="purple"><div class="color-preview" style="background:#1a0a2e;"></div>Фиолетовый</button>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <label>📱 Интерфейс</label>
+            <div class="settings-row"><span>Авто-сворачивание меню</span><div class="toggle-switch" id="autoCollapseToggle"></div></div>
+            <div class="settings-row"><span>Автозапуск видео</span><div class="toggle-switch active" id="autoPlayToggle"></div></div>
+        </div>
+
+        <div class="settings-group" style="border-top:1px solid var(--border-color);padding-top:16px;">
+            <label>ℹ️ О проекте</label>
+            <p style="color:var(--text-secondary);font-size:13px;line-height:1.6;">
+                <strong>OrbitTube</strong> — свободная видеоплатформа, работающая в обход блокировок.
+                Видео хранятся на GitHub.
+            </p>
+            <p style="color:var(--text-muted);font-size:12px;margin-top:8px;">
+                Версия 4.1 · Сделано с ❤️
+            </p>
+        </div>
+    </div>
+
+    <!-- ===== JAVASCRIPT ===== -->
+    <script>
+        // ===== ПЕРЕМЕННЫЕ =====
+        let allVideos = [];
+        let currentVideos = [];
+        let currentPage = 'home';
+        let currentVideoData = null;
+        let currentVideoIndex = -1;
+        let currentChannelName = null;
+
+        let likedVideos = JSON.parse(localStorage.getItem('orbittube_liked') || '[]');
+        let watchLater = JSON.parse(localStorage.getItem('orbittube_watchlater') || '[]');
+        let history = JSON.parse(localStorage.getItem('orbittube_history') || '[]');
+        let subscriptions = JSON.parse(localStorage.getItem('orbittube_subscriptions') || '[]');
+
+        // ===== ЗАГРУЗКА ВИДЕО =====
+        async function loadVideos() {
+            try {
+                const response = await fetch('https://raw.githubusercontent.com/reallyvisualsofficial-pixel/OrbitTube/refs/heads/main/video.raw?v=' + Date.now());
+                if (!response.ok) throw new Error('File not found');
+                const data = await response.json();
+                allVideos = data.videos || [];
+                allVideos.forEach((v, i) => {
+                    v.views = v.views || Math.floor(Math.random() * 100000) + 100;
+                    v.duration = v.duration || `${Math.floor(Math.random()*20)+1}:${String(Math.floor(Math.random()*60)).padStart(2,'0')}`;
+                    v.channel = v.channel || 'Неизвестный канал';
+                    v.thumbnail = v.thumbnail || '';
+                    v.description = v.description || 'Описание отсутствует';
+                    v.subscribers = v.subscribers || Math.floor(Math.random() * 1000000) + 1000;
+                });
+                renderPage(currentPage);
+                updateSubscriptionsSidebar();
+            } catch (e) {
+                console.warn('Ошибка загрузки video.raw:', e);
+                allVideos = [];
+                renderPage(currentPage);
+            }
+        }
+
+        // ===== РЕНДЕР СТРАНИЦЫ =====
+        function renderPage(page, channelName) {
+            currentPage = page;
+            let videos = [];
+
+            switch (page) {
+                case 'home': videos = allVideos; break;
+                case 'trending': videos = [...allVideos].sort((a, b) => (b.views || 0) - (a.views || 0)); break;
+                case 'subscriptions': videos = allVideos.filter(v => subscriptions.includes(v.channel)); break;
+                case 'library': videos = allVideos.filter(v => history.includes(v.id)); break;
+                case 'history': videos = allVideos.filter(v => history.includes(v.id)); break;
+                case 'watch_later': videos = allVideos.filter(v => watchLater.includes(v.id)); break;
+                case 'liked': videos = allVideos.filter(v => likedVideos.includes(v.id)); break;
+                case 'channel':
+                    currentChannelName = channelName;
+                    videos = allVideos.filter(v => v.channel === channelName);
+                    break;
+                default: videos = allVideos;
+            }
+
+            currentVideos = videos;
+            renderVideos(videos, page, channelName);
+            document.getElementById('playerPage').classList.remove('active');
+            document.getElementById('mainContent').style.display = 'block';
+            updateSubscriptionsSidebar();
+        }
+
+        function renderVideos(videos, page, channelName) {
+            const grid = document.getElementById('videoGrid');
+            if (!videos || videos.length === 0) {
+                grid.innerHTML = `<div class="empty-state"><i class="fas fa-video-slash"></i><h3>Здесь пока пусто</h3><p>В этой категории нет видео</p></div>`;
+                return;
+            }
+
+            let channelHeader = '';
+            if (page === 'channel' && channelName) {
+                const isSubscribed = subscriptions.includes(channelName);
+                channelHeader = `
+                    <div class="channel-header" style="grid-column:1/-1;">
+                        <div class="channel-avatar">${channelName.charAt(0).toUpperCase()}</div>
+                        <div>
+                            <div class="channel-name">${channelName}</div>
+                            <div style="color:var(--text-secondary);">${videos.length} видео</div>
+                        </div>
+                        <button class="channel-subscribe-btn ${isSubscribed ? 'subscribed' : ''}" onclick="toggleSubscribe('${channelName}')">
+                            ${isSubscribed ? '<i class="fas fa-check"></i> Подписан' : '<i class="fas fa-plus"></i> Подписаться'}
+                        </button>
+                    </div>
+                `;
+            }
+
+            const cards = videos.map((video, index) => {
+                const isLiked = likedVideos.includes(video.id);
+                const isWatchLater = watchLater.includes(video.id);
+                const hasThumbnail = video.thumbnail && video.thumbnail.startsWith('http');
+                return `
+                    <div class="video-card" onclick="openPlayer(${index})">
+                        <div class="video-thumbnail">
+                            ${hasThumbnail ?
+                                `<img src="${video.thumbnail}" alt="${video.title}" loading="lazy" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);\\'><i class=\\'fas fa-rocket\\' style=\\'font-size:48px;\\'></i><span style=\\'margin-top:8px;font-weight:bold;font-size:18px;\\'>OrbitTube</span></div>'">` :
+                                `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);">
+                                    <i class="fas fa-rocket" style="font-size:48px;"></i>
+                                    <span style="margin-top:8px;font-weight:bold;font-size:18px;">OrbitTube</span>
+                                 </div>`
+                            }
+                            <span class="duration">${video.duration || '10:00'}</span>
+                            ${isLiked ? '<span style="position:absolute;top:8px;right:8px;background:var(--accent);color:#000;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:bold;"><i class="fas fa-thumbs-up"></i></span>' : ''}
+                            ${isWatchLater ? '<span style="position:absolute;top:8px;left:8px;background:#ffaa44;color:#000;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:bold;"><i class="fas fa-clock"></i></span>' : ''}
+                        </div>
+                        <div class="video-info">
+                            <div class="video-channel-avatar" onclick="event.stopPropagation(); openChannel('${video.channel}')">${(video.channel || 'O')[0].toUpperCase()}</div>
+                            <div class="video-details">
+                                <div class="video-title">${video.title || 'Без названия'}</div>
+                                <div class="video-channel-name" onclick="event.stopPropagation(); openChannel('${video.channel}')">${video.channel || 'OrbitTube'}</div>
+                                <div class="video-meta"><span>${formatViews(video.views || 0)} просмотров</span></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            grid.innerHTML = channelHeader + cards;
+
+            document.querySelectorAll('.sidebar-item').forEach(el => {
+                el.classList.toggle('active', el.dataset.page === page);
+            });
+        }
+
+        function formatViews(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        }
+
+        // ===== ПОДПИСКИ =====
+        function toggleSubscribe(channelName) {
+            const index = subscriptions.indexOf(channelName);
+            if (index > -1) {
+                subscriptions.splice(index, 1);
+            } else {
+                subscriptions.push(channelName);
+            }
+            localStorage.setItem('orbittube_subscriptions', JSON.stringify(subscriptions));
+            updateSubscriptionsSidebar();
+            if (currentPage === 'channel' && currentChannelName === channelName) {
+                renderPage('channel', channelName);
+            }
+            const subBtn = document.getElementById('playerSubscribe');
+            if (subBtn) {
+                const isSub = subscriptions.includes(channelName);
+                subBtn.textContent = isSub ? 'Подписан' : 'Подписаться';
+                subBtn.className = 'channel-subscribe-btn' + (isSub ? ' subscribed' : '');
+            }
+        }
+
+        function updateSubscriptionsSidebar() {
+            const container = document.getElementById('subscriptionsList');
+            if (!container) return;
+            if (subscriptions.length === 0) {
+                container.innerHTML = `<div style="padding:8px 24px;color:var(--text-muted);font-size:13px;">Нет подписок</div>`;
+                return;
+            }
+            container.innerHTML = subscriptions.map(ch => `
+                <div class="sidebar-item" data-channel="${ch}" onclick="openChannel('${ch}')">
+                    <i class="fas fa-user"></i><span>${ch}</span>
+                </div>
+            `).join('');
+        }
+
+        // ===== ОТКРЫТЬ КАНАЛ =====
+        function openChannel(channelName) {
+            if (!channelName) return;
+            closePlayer();
+            renderPage('channel', channelName);
+            document.getElementById('searchInput').value = '';
+        }
+
+        // ===== ПОИСК =====
+        function searchVideos() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            if (!query) { renderPage(currentPage); return; }
+            const filtered = allVideos.filter(v => v.title.toLowerCase().includes(query) || (v.channel && v.channel.toLowerCase().includes(query)));
+            currentVideos = filtered;
+            renderVideos(filtered, 'search');
+        }
+
+        // ===== ПЛЕЕР =====
+        function openPlayer(index) {
+            const video = currentVideos[index];
+            if (!video) return;
+            currentVideoData = video;
+            document.getElementById('mainContent').style.display = 'none';
+            document.getElementById('playerPage').classList.add('active');
+
+            document.getElementById('playerTitle').textContent = video.title || 'Без названия';
+            document.getElementById('playerChannelName').textContent = video.channel || 'OrbitTube';
+            document.getElementById('playerChannelAvatar').textContent = (video.channel || 'O')[0].toUpperCase();
+            document.getElementById('playerSubscribers').textContent = formatViews(video.subscribers || 0) + ' подписчиков';
+            document.getElementById('playerDescription').textContent = video.description || 'Описание отсутствует';
+
+            const player = document.getElementById('playerVideo');
+            player.src = video.temp_url || video.videoUrl || 'https://www.w3schools.com/html/mov_bbb.mp4';
+            player.load();
+
+            const isLiked = likedVideos.includes(video.id);
+            document.getElementById('playerLike').classList.toggle('liked', isLiked);
+            document.getElementById('likeCount').textContent = (video.views || 0) % 1000;
+
+            const isWatchLater = watchLater.includes(video.id);
+            document.getElementById('watchLaterText').textContent = isWatchLater ? 'В сохранённых' : 'Смотреть позже';
+
+            const subBtn = document.getElementById('playerSubscribe');
+            const isSub = subscriptions.includes(video.channel);
+            subBtn.textContent = isSub ? 'Подписан' : 'Подписаться';
+            subBtn.className = 'channel-subscribe-btn' + (isSub ? ' subscribed' : '');
+            subBtn.onclick = function() { toggleSubscribe(video.channel); };
+
+            renderRecommendations(video.id);
+
+            if (!history.includes(video.id)) {
+                history.push(video.id);
+                localStorage.setItem('orbittube_history', JSON.stringify(history));
+            }
+
+            const autoPlay = document.getElementById('autoPlayToggle').classList.contains('active');
+            if (autoPlay) player.play().catch(() => {});
+        }
+
+        function renderRecommendations(currentId) {
+            const list = document.getElementById('recommendedList');
+            const recommended = allVideos
+                .filter(v => v.id !== currentId)
+                .sort(() => Math.random() - 0.5)
+                .slice(0, 10);
+            if (recommended.length === 0) {
+                list.innerHTML = '<div class="empty-state"><h3>Нет рекомендаций</h3></div>';
+                return;
+            }
+            list.innerHTML = recommended.map(v => `
+                <div class="recommended-item" onclick="openPlayerByRecommended(${v.id})">
+                    <div class="recommended-thumbnail">
+                        <i class="fas fa-play-circle" style="font-size:32px;color:var(--text-muted);"></i>
+                    </div>
+                    <div class="recommended-info">
+                        <div class="recommended-title-text">${v.title || 'Без названия'}</div>
+                        <div class="recommended-channel">${v.channel || 'OrbitTube'}</div>
+                        <div class="recommended-meta">${formatViews(v.views || 0)} просмотров</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openPlayerByRecommended(id) {
+            const index = allVideos.findIndex(v => v.id === id);
+            if (index !== -1) {
+                currentVideos = allVideos;
+                openPlayer(index);
+            }
+        }
+
+        function closePlayer() {
+            document.getElementById('playerPage').classList.remove('active');
+            document.getElementById('mainContent').style.display = 'block';
+            document.getElementById('playerVideo').pause();
+        }
+
+        // ===== КНОПКИ ПЛЕЕРА =====
+        function toggleLike() {
+            if (!currentVideoData) return;
+            const id = currentVideoData.id;
+            const index = likedVideos.indexOf(id);
+            if (index > -1) { likedVideos.splice(index, 1); } else { likedVideos.push(id); }
+            localStorage.setItem('orbittube_liked', JSON.stringify(likedVideos));
+            const isLiked = likedVideos.includes(id);
+            document.getElementById('playerLike').classList.toggle('liked', isLiked);
+        }
+
+        function toggleDislike() { alert('👎 Дизлайк поставлен! (демо)'); }
+
+        function toggleWatchLater() {
+            if (!currentVideoData) return;
+            const id = currentVideoData.id;
+            const index = watchLater.indexOf(id);
+            if (index > -1) { watchLater.splice(index, 1); } else { watchLater.push(id); }
+            localStorage.setItem('orbittube_watchlater', JSON.stringify(watchLater));
+            const isWatchLater = watchLater.includes(id);
+            document.getElementById('watchLaterText').textContent = isWatchLater ? 'В сохранённых' : 'Смотреть позже';
+        }
+
+        function shareVideo() {
+            if (!currentVideoData) return;
+            const url = window.location.href;
+            if (navigator.share) {
+                navigator.share({ title: currentVideoData.title, text: `Смотрите "${currentVideoData.title}" на OrbitTube!`, url: url }).catch(() => {});
+            } else {
+                navigator.clipboard.writeText(url).then(() => alert('🔗 Ссылка скопирована!')).catch(() => prompt('Скопируйте ссылку:', url));
+            }
+        }
+
+        // ===== НАСТРОЙКИ =====
+        function openSettings() { document.getElementById('settingsPanel').classList.add('open'); }
+        function closeSettings() { document.getElementById('settingsPanel').classList.remove('open'); }
+
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            document.querySelectorAll('.theme-btn').forEach(el => el.classList.toggle('active', el.dataset.theme === theme));
+            localStorage.setItem('orbittube_theme', theme);
+        }
+
+        function setBg(bg) {
+            document.documentElement.setAttribute('data-bg', bg);
+            document.querySelectorAll('.bg-btn').forEach(el => el.classList.toggle('active', el.dataset.bg === bg));
+            localStorage.setItem('orbittube_bg', bg);
+        }
+
+        function loadSettings() {
+            const theme = localStorage.getItem('orbittube_theme') || 'dark';
+            const bg = localStorage.getItem('orbittube_bg') || 'dark';
+            setTheme(theme);
+            setBg(bg);
+        }
+
+        // ===== ИНИЦИАЛИЗАЦИЯ =====
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSettings();
+            loadVideos();
+
+            document.getElementById('menuToggle').addEventListener('click', function() {
+                document.getElementById('sidebar').classList.toggle('collapsed');
+                document.getElementById('mainContent').classList.toggle('expanded');
+            });
+
+            document.getElementById('logoHome').addEventListener('click', function() {
+                document.getElementById('searchInput').value = '';
+                closePlayer();
+                renderPage('home');
+            });
+
+            document.getElementById('backToHome').addEventListener('click', closePlayer);
+
+            document.getElementById('searchBtn').addEventListener('click', searchVideos);
+            document.getElementById('searchInput').addEventListener('keyup', function(e) { if (e.key === 'Enter') searchVideos(); });
+
+            document.getElementById('settingsBtn').addEventListener('click', openSettings);
+            document.getElementById('settingsClose').addEventListener('click', closeSettings);
+
+            document.querySelectorAll('.sidebar-item[data-page]').forEach(item => {
+                item.addEventListener('click', function() {
+                    const page = this.dataset.page;
+                    if (page === 'settings') { openSettings(); return; }
+                    closePlayer();
+                    renderPage(page);
+                    document.getElementById('searchInput').value = '';
+                });
+            });
+
+            document.getElementById('playerLike').addEventListener('click', toggleLike);
+            document.getElementById('playerDislike').addEventListener('click', toggleDislike);
+            document.getElementById('playerWatchLater').addEventListener('click', toggleWatchLater);
+            document.getElementById('playerShare').addEventListener('click', shareVideo);
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') closePlayer();
+            });
+
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.addEventListener('click', function() { setTheme(this.dataset.theme); });
+            });
+
+            document.querySelectorAll('.bg-btn').forEach(btn => {
+                btn.addEventListener('click', function() { setBg(this.dataset.bg); });
+            });
+
+            document.querySelectorAll('.toggle-switch').forEach(toggle => {
+                toggle.addEventListener('click', function() { this.classList.toggle('active'); });
+            });
+
+            document.getElementById('autoCollapseToggle').addEventListener('click', function() {
+                if (this.classList.contains('active')) {
+                    document.getElementById('sidebar').classList.add('collapsed');
+                    document.getElementById('mainContent').classList.add('expanded');
+                } else {
+                    document.getElementById('sidebar').classList.remove('collapsed');
+                    document.getElementById('mainContent').classList.remove('expanded');
+                }
+            });
+
+            document.getElementById('avatarBtn').addEventListener('click', openSettings);
+
+            setInterval(loadVideos, 2 * 60 * 1000);
+
+            console.log('🚀 OrbitTube v4.1 загружен!');
+        });
+    </script>
+</body>
+</html>
